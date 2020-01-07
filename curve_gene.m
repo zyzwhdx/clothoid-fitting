@@ -1,4 +1,6 @@
 clc;clear all;
+%% 跑通模拟数据
+
 %% clothoid generator
 % 单位是m
 % x0和y0是第一个点对应的横纵坐标
@@ -48,7 +50,7 @@ scatter(coor(:,1),coor(:,2))
 
 % 迭代初值
 u = linspace(0, 1, s_num);
-m0 = 3.0; k0 = 0.000; p0 = 0.0000;
+m0 = 1.0; k0 = 0.000; p0 = 0.0000;
 
 for major_iter = 1:5
 % golden search
@@ -95,7 +97,6 @@ ssqprob = optimproblem('Objective', diffexpr);
 options.Display = 'iter';
 options = optimoptions('lsqlin');
 [sol, fval, exitflag, output] = solve(ssqprob, x0, 'Options', options); 
-options
 sol.greek
 
 m0 = sol.greek(1); k0 = sol.greek(2); p0 = sol.greek(3);
