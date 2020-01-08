@@ -47,14 +47,24 @@ for i = 2: total_point_number - 1
 end
 
 %% 优化
-greek = optimvar('greek', 3*segment_number); % 要迭代的变量，每一段三个
+l_bound = zeros(3*segment_number,1); h_bound = zeros(3*segment_number,1);
+    for i = 1:segment_number
+        l_bound(3*i-2) = 0.0;
+        l_bound(3*i-1) = -0.05;
+        l_bound(3*i-0) = -0.0025;
+        h_bound(3*i-2) = 2*pi;
+        h_bound(3*i-1) = 0.05;
+        h_bound(3*i-0) = 0.0025;
+    end
+greek = optimvar('greek', 3*segment_number, 'LowerBound', l_bound, 'UpperBound', h_bound); % 要迭代的变量，每一段三个
+
 diffexpr = 0.0;
 x_integ = @(t, mu, ka, ps) cos(mu + ka.*t + 0.5.*ps.*t.*t);
 y_integ = @(t, mu, ka, ps) sin(mu + ka.*t + 0.5.*ps.*t.*t);
 % 迭代初值
 
 % 遍历每一段
-for segment_iter = 1 : 1
+for segment_iter = 1 : 4
    % 取出坐标
    coor_segment = coor(segment_label(segment_iter,1):segment_label(segment_iter,2),:);
    seg_point_number = size(coor_segment, 1);
@@ -86,19 +96,24 @@ for segment_iter = 1 : 1
     end
 end
 
-    x0.greek = zeros(1, 12);
-    x0.greek(1) = 1.0;x0.greek(4) = 2.0;x0.greek(7) = 2.0;x0.greek(10) = 2.0;
+    x0.greek = zeros(1, 3*segment_number);
+    for i = 1:segment_number
+        x0.greek(3*i-2) = 1.5;
+        x0.greek(3*i-1) = 0.0;
+        x0.greek(3*i-0) = 0.0;
+    end
     ssqprob = optimproblem('Objective', diffexpr);
     options = optimoptions('lsqlin');
     options.Display = 'iter';
+    showproblem(ssqprob)
     [sol, fval, exitflag, output] = solve(ssqprob, x0, 'Options', options); 
-    sol.greek(1:3)
+    sol.greek
     
     %% curve generator
     s = linspace(0, curve_length_seg, 100);
     coor2 = zeros(100, 2);
     coor2(1,1) = x00; coor2(1,2) = y00;
-    mu0 = sol.greek(1); kappa0 = sol.greek(2); psi = sol.greek(3);
+    mu0 = sol.greek(10); kappa0 = sol.greek(11); psi = sol.greek(12);
     for i = 1 : 100
         % 积分
         fun1 = @(t, mu0, kappa0, psi) cos(mu0 + t.*kappa0 + 0.5.*t.*t.*psi);
