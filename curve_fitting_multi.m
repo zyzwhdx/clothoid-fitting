@@ -54,7 +54,7 @@ y_integ = @(t, mu, ka, ps) sin(mu + ka.*t + 0.5.*ps.*t.*t);
 % 迭代初值
 
 % 遍历每一段
-for segment_iter = 1 : segment_number
+for segment_iter = 1 : 1
    % 取出坐标
    coor_segment = coor(segment_label(segment_iter,1):segment_label(segment_iter,2),:);
    seg_point_number = size(coor_segment, 1);
@@ -80,16 +80,35 @@ for segment_iter = 1 : segment_number
     diffun{segment_iter*2} = @(greek, uu) y00 + integral(@(t)y_integ(t, ...
     greek(segment_iter*3-2), greek(segment_iter*3-1), greek(segment_iter*3)), 0, uu*curve_length_seg);
     
-    for i = 1 : 2
+    for i = 1 : seg_point_number
         diffexpr = diffexpr + (fcn2optimexpr(diffun{segment_iter*2-1}, greek, u(i)) - coor_segment(i,1)).^2;
         diffexpr = diffexpr + (fcn2optimexpr(diffun{segment_iter*2}, greek, u(i)) - coor_segment(i,2)).^2;
     end
 end
 
     x0.greek = zeros(1, 12);
-    x0.greek(1) = 2.0;x0.greek(4) = 2.0;x0.greek(7) = 2.0;x0.greek(10) = 2.0;
+    x0.greek(1) = 1.0;x0.greek(4) = 2.0;x0.greek(7) = 2.0;x0.greek(10) = 2.0;
     ssqprob = optimproblem('Objective', diffexpr);
     options = optimoptions('lsqlin');
+    options.Display = 'iter';
     [sol, fval, exitflag, output] = solve(ssqprob, x0, 'Options', options); 
-    sol.greek
+    sol.greek(1:3)
+    
+    %% curve generator
+    s = linspace(0, curve_length_seg, 100);
+    coor2 = zeros(100, 2);
+    coor2(1,1) = x00; coor2(1,2) = y00;
+    mu0 = sol.greek(1); kappa0 = sol.greek(2); psi = sol.greek(3);
+    for i = 1 : 100
+        % 积分
+        fun1 = @(t, mu0, kappa0, psi) cos(mu0 + t.*kappa0 + 0.5.*t.*t.*psi);
+        fun2 = @(t, mu0, kappa0, psi) sin(mu0 + t.*kappa0 + 0.5.*t.*t.*psi);
+        Q1 = integral(@(t)fun1(t,mu0,kappa0,psi),s(1),s(i));
+        Q2 = integral(@(t)fun2(t,mu0,kappa0,psi),s(1),s(i));
+        coor2(i,1) = Q1 + x00;
+        coor2(i,2) = Q2 + y00;
+    end
+    plot(coor2(:,1),coor2(:,2),'b')
+    hold on
+    scatter(coor_segment(:,1),coor_segment(:,2), 'r')
 
