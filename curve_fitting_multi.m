@@ -36,7 +36,7 @@ for i = 2: total_point_number - 1
     hig_ = floor(distance_accu(i)/segment_length_threshold);
     
     if low_ ~= hig_
-        high = i - 1;
+        high = i;
         segment_label(segment_number, 1) = low;
         segment_label(segment_number, 2) = high;
         low = i;
@@ -78,7 +78,7 @@ greek_result = zeros(segment_number, 2);
 seg_length_result = zeros(segment_number, 1);
 
 % 遍历每一段，segment_iter
-for segment_iter = 1 : 4
+for segment_iter = 1 : 2
    % 取出坐标
    coor_segment = coor(segment_label(segment_iter,1):segment_label(segment_iter,2),:);
    seg_point_number = size(coor_segment, 1);
@@ -106,9 +106,21 @@ for segment_iter = 1 : 4
     diffun{segment_iter*2} = @(greek, uu) y00 + integral(@(t)y_integ(t, ...
     greek(segment_iter*3-2), greek(segment_iter*3-1), greek(segment_iter*3)), 0, uu*curve_length_seg);
     
-    for i = 1 : seg_point_number
+    for i = 1 : seg_point_number - 1
         diffexpr = diffexpr + (fcn2optimexpr(diffun{segment_iter*2-1}, greek, u(i)) - coor_segment(i,1)).^2;
         diffexpr = diffexpr + (fcn2optimexpr(diffun{segment_iter*2}, greek, u(i)) - coor_segment(i,2)).^2;
+    end
+        % 此处可以加入权重，每一段最后一点的权重，用于“0阶平滑”
+        diffexpr = diffexpr + 1*(fcn2optimexpr(diffun{segment_iter*2-1}, greek, u(seg_point_number)) - coor_segment(seg_point_number,1)).^2;
+        diffexpr = diffexpr + 1*(fcn2optimexpr(diffun{segment_iter*2}, greek, u(seg_point_number)) - coor_segment(seg_point_number,2)).^2;
+    
+    
+    % 方向平滑约束， “一阶平滑”
+    % 前一段结尾的方向与后一段开始的方向一致
+    if segment_iter ~= 1
+        smoothfun{segment_iter-1} = @(greek, length) cos(greek(segment_iter*3-5)+greek(segment_iter*3-4)*length+0.5*greek(segment_iter*3-3)*length*length)- ...
+            cos(greek(segment_iter*3-2));
+        diffexpr = diffexpr + 10000*((fcn2optimexpr(smoothfun{segment_iter-1}, greek, seg_length_result(segment_iter-1))).^2);
     end
     
     coor_begin(segment_iter, 1) = x00; coor_begin(segment_iter, 2) = y00;
@@ -125,7 +137,7 @@ showproblem(ssqprob)
 sol.greek
 
 %% 结果对比
-for segment_iter = 1 : 4
+for segment_iter = 1 : 2
     s = linspace(0, seg_length_result(segment_iter), 500);
     coor2 = zeros(100, 2);
     coor2(1,1) = coor_begin(segment_iter, 1); coor2(1,2) = coor_begin(segment_iter, 2);
@@ -144,5 +156,5 @@ for segment_iter = 1 : 4
     scatter(coor(segment_label(segment_iter,1):segment_label(segment_iter,2),1),coor(segment_label(segment_iter,1):segment_label(segment_iter,2),2), 'r')
 end
 
-
+abs(sol.greek(1)+seg_length_result(1)*sol.greek(2)+0.5*seg_length_result(1)*seg_length_result(1)*sol.greek(3)-sol.greek(4))*180.0/pi
 
