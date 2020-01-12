@@ -53,7 +53,7 @@ coor_begin = zeros(segment_number, 2);
 
 % 权重
 wt_u_endpoint = 100;      % 更新u时最后一点的权重，约束曲线截止于最后一点
-wt_connect_point = 100;     % 更新曲线参数时，约束曲线终止于最后一点
+wt_connect_point = 10000;     % 更新曲线参数时，约束曲线终止于最后一点
 wt_connect_direction = 0; % 更新曲线时，约束切向一致
 
 
@@ -165,18 +165,22 @@ for major_iteration = 1 : 2
             diffexpr = diffexpr + (fcn2optimexpr(diffun{segment_iter*2-1}, greek, u(i)) - coor_segment(i,1)).^2;
             diffexpr = diffexpr + (fcn2optimexpr(diffun{segment_iter*2}, greek, u(i)) - coor_segment(i,2)).^2;
         end
+        
+        % 在第一次迭代中不加入平滑约束
+        if major_iteration > 1
             % 此处可以加入权重，每一段最后一点的权重，用于“0阶平滑”
-             diffexpr = diffexpr + wt_connect_point*(fcn2optimexpr(diffun{segment_iter*2-1}, greek, u(seg_point_number)) - coor_segment(seg_point_number,1)).^2;
-             diffexpr = diffexpr + wt_connect_point*(fcn2optimexpr(diffun{segment_iter*2}, greek, u(seg_point_number)) - coor_segment(seg_point_number,2)).^2;    
-            
-        % 方向平滑约束， “一阶平滑”
-        % 前一段结尾的方向与后一段开始的方向一致
-        if segment_iter ~= 1
-            smoothfun{segment_iter-1} = @(greek, length) cos(greek(segment_iter*3-5)+greek(segment_iter*3-4)*length+0.5*greek(segment_iter*3-3)*length*length)- ...
-                cos(greek(segment_iter*3-2));
-            diffexpr = diffexpr + wt_connect_direction*((fcn2optimexpr(smoothfun{segment_iter-1}, greek, seg_length_result(segment_iter-1))).^2);
-        end
+            diffexpr = diffexpr + wt_connect_point*(fcn2optimexpr(diffun{segment_iter*2-1}, greek, 1.0) - coor_segment(seg_point_number,1)).^2;
+            diffexpr = diffexpr + wt_connect_point*(fcn2optimexpr(diffun{segment_iter*2}, greek, 1.0) - coor_segment(seg_point_number,2)).^2;    
+        
+            if segment_iter > 1         
+                % 方向平滑约束， “一阶平滑”
+                % 前一段结尾的方向与后一段开始的方向一致
 
+                smoothfun{segment_iter-1} = @(greek, length) cos(greek(segment_iter*3-5)+greek(segment_iter*3-4)*length+0.5*greek(segment_iter*3-3)*length*length)- ...
+                cos(greek(segment_iter*3-2));
+                diffexpr = diffexpr + wt_connect_direction*((fcn2optimexpr(smoothfun{segment_iter-1}, greek, seg_length_result(segment_iter-1))).^2);
+            end
+        end
         coor_begin(segment_iter, 1) = x00; coor_begin(segment_iter, 2) = y00;
         seg_length_result(segment_iter, 1) = curve_length_seg;
     end
