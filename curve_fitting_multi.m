@@ -51,6 +51,12 @@ greek_result = zeros(segment_number, 3);
 seg_length_result = zeros(segment_number, 1);
 coor_begin = zeros(segment_number, 2);
 
+% 权重
+wt_u_endpoint = 100;      % 更新u时最后一点的权重，约束曲线截止于最后一点
+wt_connect_point = 100;     % 更新曲线参数时，约束曲线终止于最后一点
+wt_connect_direction = 0; % 更新曲线时，约束切向一致
+
+
 for major_iteration = 1 : 2
     % 迭代变量边界
     l_bound = zeros(3*segment_number,1); h_bound = zeros(3*segment_number,1);
@@ -129,20 +135,22 @@ for major_iteration = 1 : 2
                 diffexpr_u = diffexpr_u + (fcn2optimexpr(diffun_u{1}, curve_greek, u_seg, i) - coor_segment(i,1)).^2;
                 diffexpr_u = diffexpr_u + (fcn2optimexpr(diffun_u{2}, curve_greek, u_seg, i) - coor_segment(i,2)).^2;
             end
-                diffexpr_u = diffexpr_u + 10*(fcn2optimexpr(diffun_uend{1}, curve_greek, u_seg) - coor_segment(end,1)).^2;
-                diffexpr_u = diffexpr_u + 10*(fcn2optimexpr(diffun_uend{2}, curve_greek, u_seg) - coor_segment(end,2)).^2;
+                diffexpr_u = diffexpr_u + wt_u_endpoint*(fcn2optimexpr(diffun_uend{1}, curve_greek, u_seg) - coor_segment(end,1)).^2;
+                diffexpr_u = diffexpr_u + wt_u_endpoint*(fcn2optimexpr(diffun_uend{2}, curve_greek, u_seg) - coor_segment(end,2)).^2;
 
             ssqprob_u = optimproblem('Objective', diffexpr_u);         
             ssqprob_u.Constraints.cons = const * u_seg <= 0;
             options_u = optimoptions('lsqlin');
             options_u.Display = 'iter';
-            options_u.ConstraintTolerance = 1.0000e-4;
+            options_u.MaxIterations = 20;
             % 赋初值用上次迭代的数据
             x_.u_seg = u_total{segment_iter};
             x_.u_seg(1) = seg_length_result(segment_iter);
             [sol_u, fval_u, exitflag_u, output_u] = solve(ssqprob_u, x_, 'Options', options_u); 
             u_total{segment_iter} = sol_u.u_seg;
-            u_total{segment_iter}(1) = 0.0000;
+            u_total{segment_iter}(1) = 0.0000; u_total{segment_iter}(end) = 1.0000;
+            seg_length_result(segment_iter) = sol_u.u_seg(1);
+            curve_length_seg = seg_length_result(segment_iter);
         end
         
         u = u_total{segment_iter};
@@ -158,15 +166,15 @@ for major_iteration = 1 : 2
             diffexpr = diffexpr + (fcn2optimexpr(diffun{segment_iter*2}, greek, u(i)) - coor_segment(i,2)).^2;
         end
             % 此处可以加入权重，每一段最后一点的权重，用于“0阶平滑”
-             diffexpr = diffexpr + 10*(fcn2optimexpr(diffun{segment_iter*2-1}, greek, u(seg_point_number)) - coor_segment(seg_point_number,1)).^2;
-             diffexpr = diffexpr + 10*(fcn2optimexpr(diffun{segment_iter*2}, greek, u(seg_point_number)) - coor_segment(seg_point_number,2)).^2;    
+             diffexpr = diffexpr + wt_connect_point*(fcn2optimexpr(diffun{segment_iter*2-1}, greek, u(seg_point_number)) - coor_segment(seg_point_number,1)).^2;
+             diffexpr = diffexpr + wt_connect_point*(fcn2optimexpr(diffun{segment_iter*2}, greek, u(seg_point_number)) - coor_segment(seg_point_number,2)).^2;    
             
         % 方向平滑约束， “一阶平滑”
         % 前一段结尾的方向与后一段开始的方向一致
         if segment_iter ~= 1
             smoothfun{segment_iter-1} = @(greek, length) cos(greek(segment_iter*3-5)+greek(segment_iter*3-4)*length+0.5*greek(segment_iter*3-3)*length*length)- ...
                 cos(greek(segment_iter*3-2));
-            diffexpr = diffexpr + 1*((fcn2optimexpr(smoothfun{segment_iter-1}, greek, seg_length_result(segment_iter-1))).^2);
+            diffexpr = diffexpr + wt_connect_direction*((fcn2optimexpr(smoothfun{segment_iter-1}, greek, seg_length_result(segment_iter-1))).^2);
         end
 
         coor_begin(segment_iter, 1) = x00; coor_begin(segment_iter, 2) = y00;
@@ -191,7 +199,7 @@ end
 %% 结果对比
 for segment_iter = 1 : 2
     s = linspace(0, seg_length_result(segment_iter), 500);
-    coor2 = zeros(100, 2);
+    coor2 = zeros(500, 2);
     coor2(1,1) = coor_begin(segment_iter, 1); coor2(1,2) = coor_begin(segment_iter, 2);
     mu0 = sol.greek(3*segment_iter-2); kappa0 = sol.greek(3*segment_iter-1); psi = sol.greek(3*segment_iter);
     for i = 1 : 500
