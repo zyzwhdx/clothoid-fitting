@@ -53,9 +53,9 @@ seg_length_result = zeros(segment_number, 1);
 coor_begin = zeros(segment_number, 2);
 
 % 权重
-wt_u_endpoint = 1;        % 更新u时最后一点的权重，约束曲线截止于最后一点
-wt_connect_point = 1;     % 更新曲线参数时，约束曲线终止于最后一点
-wt_connect_direction = 1; % 更新曲线时，约束切向一致
+wt_u_endpoint = 1;        % 更新u时最后一点的权重，约束曲线截止于最后一点，和段内点数成正比
+wt_connect_point = 1;     % 更新曲线参数时，约束曲线终止于最后一点，和总点数成正比
+wt_connect_direction = 1; % 更新曲线时，约束切向一致，和分段数-1成正比
 
 
 % 迭代几次大循环
@@ -139,16 +139,16 @@ for major_iteration = 1 : 2
                 diffexpr_u = diffexpr_u + (fcn2optimexpr(diffun_u{1}, curve_greek, u_seg, i) - coor_segment(i,1)).^2;
                 diffexpr_u = diffexpr_u + (fcn2optimexpr(diffun_u{2}, curve_greek, u_seg, i) - coor_segment(i,2)).^2;
             end
-                diffexpr_u = diffexpr_u + wt_u_endpoint*(fcn2optimexpr(diffun_uend{1}, curve_greek, u_seg) - coor_segment(end,1)).^2;
-                diffexpr_u = diffexpr_u + wt_u_endpoint*(fcn2optimexpr(diffun_uend{2}, curve_greek, u_seg) - coor_segment(end,2)).^2;
+                diffexpr_u = diffexpr_u + wt_u_endpoint*seg_point_number*(fcn2optimexpr(diffun_uend{1}, curve_greek, u_seg) - coor_segment(end,1)).^2;
+                diffexpr_u = diffexpr_u + wt_u_endpoint*seg_point_number*(fcn2optimexpr(diffun_uend{2}, curve_greek, u_seg) - coor_segment(end,2)).^2;
             
             fprintf('Solve U\n'); fprintf('Major Iter: %d, Segment_iter: %d\n',major_iteration, segment_iter);
             ssqprob_u = optimproblem('Objective', diffexpr_u);         
             ssqprob_u.Constraints.cons = constr * u_seg <= 0;
             options_u = optimoptions('fmincon');   %fmincon problem
-            options.Display = 'iter';
+            options_u.Display = 'iter';
             options_u.ConstraintTolerance = 1.0000e-4;
-            % options_u.MaxIterations = 20;
+            options_u.MaxIterations = 20;
             % 赋初值用上次迭代的数据
             x_.u_seg = u_total{segment_iter};
             x_.u_seg(1) = seg_length_result(segment_iter);
@@ -171,7 +171,7 @@ for major_iteration = 1 : 2
 
         diffexpr_seg = 0.0;
     
-        for i = 1 : seg_point_number - 1
+        for i = 1 : seg_point_number
             diffexpr = diffexpr + (fcn2optimexpr(diffun{1}, greek, u(i)) - coor_segment(i,1)).^2;
             diffexpr = diffexpr + (fcn2optimexpr(diffun{2}, greek, u(i)) - coor_segment(i,2)).^2;
             
@@ -182,16 +182,18 @@ for major_iteration = 1 : 2
         % 在第一次迭代中不加入平滑约束
         if major_iteration > 1
             % 此处可以加入权重，每一段最后一点的权重，用于“0阶平滑”
-            diffexpr = diffexpr + wt_connect_point*(fcn2optimexpr(diffun{1}, greek, 1.0) - coor_segment(seg_point_number,1)).^2;
-            diffexpr = diffexpr + wt_connect_point*(fcn2optimexpr(diffun{2}, greek, 1.0) - coor_segment(seg_point_number,2)).^2;    
+            % 0阶平滑与总的点数成正比
+            diffexpr = diffexpr + wt_connect_point*total_point_number*(fcn2optimexpr(diffun{1}, greek, 1.0) - coor_segment(seg_point_number,1)).^2;
+            diffexpr = diffexpr + wt_connect_point*total_point_number*(fcn2optimexpr(diffun{2}, greek, 1.0) - coor_segment(seg_point_number,2)).^2;    
         
             if segment_iter > 1         
-                % 方向平滑约束， “一阶平滑”
+                % 方向平滑约束， “一阶平滑”，与总的分段数成正比
                 % 前一段结尾的方向与后一段开始的方向一致
-
-                smoothfun{segment_iter-1} = @(greek, length) cos(greek(segment_iter*3-5)+greek(segment_iter*3-4)*length+0.5*greek(segment_iter*3-3)*length*length)- ...
-                cos(greek(segment_iter*3-2));
-                diffexpr = diffexpr + wt_connect_direction*(segment_iter-1)*((fcn2optimexpr(smoothfun{segment_iter-1}, greek, seg_length_result(segment_iter-1))).^2);
+                smoothfun{segment_iter-1} = @(greek, length) greek(segment_iter*3-5)+greek(segment_iter*3-4)*length+0.5*greek(segment_iter*3-3)*length*length- ...
+                greek(segment_iter*3-2);
+                % 平滑约束
+                diffexpr = diffexpr + wt_connect_direction*(segment_iter-1)*((fcn2optimexpr(smoothfun{segment_iter-1}, ...
+                    greek, seg_length_result(segment_iter-1))).^2);
             end
         % 第一次迭代先初始化曲线参数
         else
@@ -258,7 +260,6 @@ for major_iteration = 1 : 2
 end
 
 %% 结果对比
-
 % abs(sol.greek(1)+seg_length_result(1)*sol.greek(2)+0.5*seg_length_result(1)*seg_length_result(1)*sol.greek(3)-sol.greek(4))*180.0/pi
 
 fid = fopen('curve_para.txt', 'w');
