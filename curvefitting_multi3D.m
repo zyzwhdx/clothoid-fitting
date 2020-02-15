@@ -3,8 +3,11 @@ clc; clear all;
 
 %% 读取数据
 
-filename = '.\shortedge.txt';
+filename = '.\edge.txt';
 [oX, oY, oZ] = textread(filename, '%f%f%f', 'delimiter', ',');
+
+filename = '.\curve_para.txt';
+[trash1, trash2, plength, p1, p2, p3, p4, p5, trash3] = textread(filename, '%f%f%f%f%f%f%f%f%f', 'delimiter', ',');
 
 mX = mean(oX); mY = mean(oY);  mZ = mean(oZ);
 sX = std(oX); sY = std(oY); sZ = std(oZ);
@@ -29,7 +32,7 @@ for i = 2: total_point_number
 end
 
 distance_total = distance_accu(end);  % 距离总和
-segment_length_threshold = 200.0;     % 分段长度阈值
+segment_length_threshold = 100.0;     % 分段长度阈值
 
 low = 1; upp = 1;
 for i = 2: total_point_number - 1
@@ -77,6 +80,14 @@ for major_iteration = 1 : 2
         end
     else
         x0.greek = sol.greek;
+    end
+    
+    % 用文件中的参数初始化
+    if size(p1,1) ==  segment_number
+        for i = 1:segment_number
+            x0.greek(5*i-4) = p1(i,1); x0.greek(5*i-3) = p2(i,1); x0.greek(5*i-2) = p3(i,1);
+            x0.greek(5*i-1) = p4(i,1); x0.greek(5*i) = p5(i,1);
+        end
     end
 
     % 积分函数
